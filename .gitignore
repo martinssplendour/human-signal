@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Envs & secrets
+venv/
+.venv/
+.env
+
+# Runtime outputs
+logs/
+recordings/
+datasets/
+configs/ezgif.com-video-to-gif-converter*.gif
+
+# Builds
+build/
+dist/
+
+# OS/IDE
+.DS_Store
+.idea/
+.qodo/
