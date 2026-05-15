@@ -6,3 +6,7 @@ streamlit
 plotly
 pydantic
 pyyaml
+fastapi
+uvicorn
+joblib
+scikit-learn

@@ -80,7 +80,68 @@ On macOS/Linux, activate the environment with:
 source .venv/bin/activate
 ```
 
-## Run
+## Run Dedicated Frontend
+
+```bash
+uvicorn backend_api:app --reload --host 127.0.0.1 --port 8000
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000
+```
+
+The dedicated frontend captures webcam video in the browser and sends frames to the local Python API for MediaPipe tracking and signal scoring.
+
+The frontend uses a WebSocket stream for frame analysis and falls back to the HTTP `/api/frame` endpoint if the socket is unavailable.
+
+## Engine Architecture
+
+```text
+frontend/              Browser camera capture and dashboard
+backend_api.py         FastAPI routes and WebSocket endpoint
+engine/                Runtime orchestration, schemas, tracker selection
+core/                  Feature extraction, quality checks, scoring pipeline
+modules/               Attention, fatigue, posture, tension, and mode event rules
+scripts/evaluate_engine.py  Offline image/video evaluation harness
+```
+
+By default the engine uses the compatible legacy MediaPipe FaceMesh/Pose backend. It can use MediaPipe Tasks when local model files are configured:
+
+```yaml
+models:
+  prefer_tasks: true
+  face_landmarker: "models/face_landmarker.task"
+  pose_landmarker: "models/pose_landmarker.task"
+```
+
+If those files are absent, the app falls back to the legacy tracker so local startup still works.
+
+## Evaluate Engine
+
+```bash
+python scripts/evaluate_engine.py datasets/eval --mode Driver --output datasets/eval_results.csv
+```
+
+The evaluator accepts image files, video files, or directories. Folder names are treated as labels in the CSV output.
+
+## Train Local Classifiers
+
+```bash
+python training/train_classifiers.py datasets --output models/classifiers.joblib
+```
+
+Then enable the trained bundle:
+
+```yaml
+models:
+  classifier_bundle: "models/classifiers.joblib"
+```
+
+If no classifier bundle is configured, the engine keeps using the rule-based scorers.
+
+## Run Legacy Streamlit App
 
 ```bash
 streamlit run app.py

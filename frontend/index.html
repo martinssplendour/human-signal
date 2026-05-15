@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Human Signal</title>
+    <link rel="stylesheet" href="/assets/styles.css?v=14" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">HS</span>
+          <div>
+            <h1>Human Signal</h1>
+            <p>Driver wellness & observation</p>
+          </div>
+        </div>
+
+        <nav class="nav-section" aria-label="Monitoring">
+          <p>Monitoring</p>
+          <a class="active" href="#">Live Dashboard</a>
+          <a href="#">Sessions</a>
+          <a href="#">Reports</a>
+        </nav>
+
+        <section class="panel-section">
+          <p>Camera</p>
+          <button id="cameraBtn" class="primary">Start Camera</button>
+          <button id="runBtn">Pause Analysis</button>
+          <button id="calibrateBtn">Calibrate (10s)</button>
+          <button id="sessionBtn">Start New Session</button>
+        </section>
+
+        <section class="panel-section">
+          <p>Context</p>
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option>Driver</option>
+            <option>Desk ergonomics</option>
+            <option>Care observation</option>
+            <option>Healthcare observation</option>
+          </select>
+
+          <label for="careContext">Care Context</label>
+          <select id="careContext">
+            <option>Chair</option>
+            <option>Bed</option>
+            <option>Room</option>
+            <option>Desk</option>
+          </select>
+
+          <label class="switch-row">
+            <span>Privacy Blur</span>
+            <input type="checkbox" id="privacyToggle" />
+          </label>
+        </section>
+
+        <section id="healthcareFields" class="panel-section hidden">
+          <p>Healthcare</p>
+          <label for="patientId">Patient/session ID</label>
+          <input id="patientId" autocomplete="off" />
+          <label for="observationType">Observation type</label>
+          <select id="observationType">
+            <option>General observation</option>
+            <option>Post-procedure recovery</option>
+            <option>Sleep/rest observation</option>
+            <option>Rehab/session monitoring</option>
+            <option>Waiting room / triage support</option>
+          </select>
+          <label for="eventNote">Event note</label>
+          <input id="eventNote" autocomplete="off" />
+          <label class="check"><input type="checkbox" id="consent" /> Consent captured</label>
+        </section>
+
+        <section class="panel-section">
+          <p>Feedback</p>
+          <label for="feedback">Latest Feedback</label>
+          <select id="feedback">
+            <option value="">None</option>
+            <option value="acknowledge">Acknowledge</option>
+            <option value="false_alarm">False alarm</option>
+            <option value="expected_resting">Expected/resting</option>
+            <option value="needs_follow_up">Needs follow-up</option>
+          </select>
+          <button id="feedbackBtn">Save Feedback</button>
+        </section>
+
+        <footer class="system-card">
+          <span>System time</span>
+          <strong id="systemTime">--</strong>
+          <small><i></i> System Online</small>
+        </footer>
+      </aside>
+
+      <section class="main">
+        <header class="topbar">
+          <div></div>
+          <div class="top-actions">
+            <button class="icon-btn" aria-label="Notifications">!</button>
+            <div class="profile-dot"></div>
+            <strong>Work</strong>
+          </div>
+        </header>
+
+        <section class="status-banner neutral" id="statusBanner">
+          <div id="statusIcon" class="status-icon">i</div>
+          <div class="status-copy">
+            <h2 id="stateTitle">Waiting for camera</h2>
+            <p id="statusMessage">Start the camera to begin local analysis.</p>
+          </div>
+          <div class="signal-summary">
+            <div class="bars" aria-hidden="true"><span></span><span></span><span></span></div>
+            <div>
+              <strong>Signal Quality</strong>
+              <span id="qualityPill" class="pill muted">No signal</span>
+              <small id="signalReasons">Camera signal is unavailable.</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="camera-card">
+            <div class="card-head">
+              <h3>Live Camera Feed</h3>
+              <span class="live-dot"><i></i> Live</span>
+            </div>
+            <div class="video-panel">
+              <video id="video" autoplay playsinline muted></video>
+              <canvas id="captureCanvas" class="hidden"></canvas>
+              <div id="alertBanner" class="alert hidden"></div>
+              <div class="camera-badges">
+                <span id="faceBadge">Face pending</span>
+                <span id="signalBadge">Signal pending</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="stats-card">
+            <div class="stats-grid">
+              <div class="metric-card high">
+                <span>Fatigue</span>
+                <strong><b id="fatigueValue">0</b><em>/100</em></strong>
+                <small id="fatigueState">idle</small>
+                <div class="meter"><i id="fatigueBar"></i></div>
+              </div>
+              <div class="metric-card medium">
+                <span>Attention</span>
+                <strong><b id="attentionValue">0</b><em>/100</em></strong>
+                <small id="attentionState">idle</small>
+                <div class="meter"><i id="attentionBar"></i></div>
+              </div>
+              <div class="metric-card moderate">
+                <span>Readiness</span>
+                <strong><b id="readinessValue">0</b><em>/100</em></strong>
+                <small id="postureState">idle</small>
+                <div class="meter"><i id="readinessBar"></i></div>
+              </div>
+              <div class="metric-card good">
+                <span>Tension</span>
+                <strong><b id="tensionValue">0</b><em>/10</em></strong>
+                <small id="tensionState">idle</small>
+                <div class="meter"><i id="tensionBar"></i></div>
+              </div>
+            </div>
+            <div class="action-card">
+              <div class="action-icon">PA</div>
+              <div>
+                <strong>Recommended action</strong>
+                <p id="recommendedAction">Start the camera and keep your face visible.</p>
+              </div>
+            </div>
+          </article>
+
+          <aside class="insights-card">
+            <div class="card-head">
+              <h3>Event Insights</h3>
+              <button>View all</button>
+            </div>
+            <div id="eventList" class="event-list"></div>
+          </aside>
+
+          <section class="charts">
+            <article class="chart-card">
+              <div class="card-head"><h3>Fatigue Trend</h3><small>Last 15 min</small></div>
+              <canvas id="fatigueChart"></canvas>
+            </article>
+            <article class="chart-card">
+              <div class="card-head"><h3>Attention Trend</h3><small>Last 15 min</small></div>
+              <canvas id="attentionChart"></canvas>
+            </article>
+            <article class="chart-card">
+              <div class="card-head"><h3>Signal Quality</h3><small>Last 15 min</small></div>
+              <canvas id="tensionChart"></canvas>
+            </article>
+          </section>
+        </section>
+
+        <section class="hidden-data" aria-hidden="true">
+          <dl id="summaryList"></dl>
+          <dl id="qualityList"></dl>
+        </section>
+
+        <footer class="app-footer">
+          <span>Human Signal is not a medical device. Data is for wellness and safety support only.</span>
+          <span>v2.4.1</span>
+        </footer>
+      </section>
+    </main>
+    <script src="/assets/app.js?v=14"></script>
+  </body>
+</html>

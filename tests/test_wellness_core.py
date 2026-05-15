@@ -143,6 +143,88 @@ class DriverMonitorTests(unittest.TestCase):
         self.assertEqual(state["risk"], "insufficient_signal")
         self.assertEqual(state["events"][0]["event"], "poor_signal")
 
+    def test_single_yawn_does_not_create_break_alert(self):
+        monitor = DriverMonitor()
+        result = self.base_result()
+        result["fatigue"]["state"] = "fatigue_signs"
+        result["fatigue"]["yawns"] = 1
+        state = monitor.update(result, now=10.0)
+        self.assertEqual(state["events"], [])
+
+    def test_mid_fatigue_score_alone_stays_normal(self):
+        monitor = DriverMonitor()
+        result = self.base_result()
+        result["fatigue"]["state"] = "fatigue_signs"
+        result["raw_scores"] = {"fatigue": 55.0, "attention": 95.0, "tension": 0.0}
+        state = monitor.update(result, now=10.0)
+        self.assertEqual(state["events"], [])
+        self.assertEqual(state["risk"], "normal")
+
+    def test_slow_blink_without_other_fatigue_is_watch_only(self):
+        monitor = DriverMonitor()
+        result = self.base_result()
+        result["fatigue"]["blink_duration"] = 0.35
+        result["raw_scores"] = {"fatigue": 55.0, "attention": 95.0, "tension": 0.0}
+        state = monitor.update(result, now=10.0)
+        self.assertEqual(state["risk"], "watch")
+        self.assertEqual(state["events"][0]["event"], "slow_blink_watch")
+
+    def test_five_yawns_in_five_minutes_recommends_rest(self):
+        monitor = DriverMonitor()
+        result = self.base_result()
+        for i in range(5):
+            result["fatigue"]["yawns"] = i + 1
+            state = monitor.update(result, now=10.0 + i * 50.0)
+        self.assertEqual(state["risk"], "elevated")
+        self.assertTrue(any(e["event"] == "repeated_yawning_5m" for e in state["events"]))
+
+    def test_two_second_eye_closure_is_critical(self):
+        monitor = DriverMonitor()
+        result = self.base_result()
+        result["fatigue"]["state"] = "drowsy"
+        result["fatigue"]["closed_duration"] = 2.1
+        state = monitor.update(result, now=10.0)
+        self.assertEqual(state["risk"], "critical")
+        self.assertEqual(state["events"][0]["event"], "sustained_eye_closure")
+
+    def test_looking_away_does_not_trigger_driver_event(self):
+        monitor = DriverMonitor()
+        result = self.base_result()
+        result["attention"] = {"state": "looking_away", "offscreen_duration": 30.0}
+        state = monitor.update(result, now=10.0)
+        self.assertEqual(state["events"], [])
+        self.assertEqual(state["risk"], "normal")
+
+    def test_eye_critical_suppresses_lower_eye_alerts(self):
+        monitor = DriverMonitor()
+        result = self.base_result()
+        result["fatigue"]["closed_duration"] = 2.1
+        result["fatigue"]["perclos"] = 0.3
+        result["fatigue"]["blink_duration"] = 0.4
+        state = monitor.update(result, now=10.0)
+        eye_events = [e for e in state["events"] if e["event"] in {"sustained_eye_closure", "perclos_critical", "slow_blink_elevated"}]
+        self.assertEqual(len(eye_events), 1)
+        self.assertEqual(eye_events[0]["event"], "sustained_eye_closure")
+
+    def test_two_elevated_events_escalate_to_compound_critical(self):
+        monitor = DriverMonitor()
+        result = self.base_result()
+        result["fatigue"]["yawns"] = 5
+        first = monitor.update(result, now=10.0)
+        self.assertTrue(any(e["severity"] == "elevated" for e in first["events"]))
+        result = self.base_result()
+        result["fatigue"]["perclos"] = 0.16
+        second = monitor.update(result, now=60.0)
+        self.assertEqual(second["risk"], "critical")
+        self.assertTrue(any(e["event"] == "compound_fatigue_escalation" for e in second["events"]))
+
+    def test_hydration_reminder_is_watch(self):
+        monitor = DriverMonitor()
+        monitor.reset(0.0)
+        state = monitor.update(self.base_result(), now=5401.0)
+        self.assertEqual(state["risk"], "watch")
+        self.assertTrue(any(e["event"] == "hydration_reminder" for e in state["events"]))
+
 
 class CareMonitorTests(unittest.TestCase):
     def base_result(self):

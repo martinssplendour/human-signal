@@ -14,7 +14,7 @@ windows:
 thresholds:
   perclos_drowsy: 0.25
   blink_rate_high: 25
-  gaze_offscreen_secs: 3.0
+  gaze_offscreen_secs: 5.0
   stress_tension_high: 0.7
   neck_angle_slouch: 22
   yawn_mar: 0.6          # mouth aspect ratio considered a yawn
@@ -24,10 +24,42 @@ thresholds:
   fatigue_ear_closed_ratio: 0.70
   microsleep_secs: 1.5
   head_turn_yaw: 0.18
-  gaze_away: 0.32
+  head_turn_yaw_deg: 30
+  gaze_away: 0.45
+  gaze_offset_x: 0.28
+  gaze_offset_y: 0.32
 
 smoothing:
   ema_alpha: 0.25
+
+calibration:
+  seconds: 10
+  baseline_ema_alpha: 0.005
+  baseline_update_max_score: 25
+
+driver:
+  yawn_watch_count: 3
+  yawn_elevated_count: 5
+  yawn_window_secs: 300
+  rapid_yawn_count: 3
+  rapid_yawn_window_secs: 120
+  eye_closed_elevated_secs: 1.5
+  eye_closed_critical_secs: 2.0
+  perclos_watch: 0.10
+  perclos_elevated: 0.15
+  perclos_critical: 0.25
+  blink_watch_ms: 200
+  blink_elevated_ms: 300
+  head_nod_critical_count: 3
+  head_nod_window_secs: 120
+  hydration_reminder_secs: 5400
+  break_reminder_secs: 7200
+  professional_limit_secs: 16200
+  fatigue_score_elevated: 80
+  compound_elevated_count: 2
+  compound_window_secs: 600
+  long_trip_secs: 10800
+  long_trip_threshold_multiplier: 0.8
 
 quality:
   min_brightness: 60
@@ -52,3 +84,8 @@ recording:
 dataset:
   output_dir: datasets
 
+models:
+  prefer_tasks: true
+  face_landmarker: ""
+  pose_landmarker: ""
+  classifier_bundle: ""

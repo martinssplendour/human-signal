@@ -13,8 +13,11 @@ venv/
 
 # Runtime outputs
 logs/
+*.log
 recordings/
 datasets/
+models/*.joblib
+models/*.pkl
 configs/ezgif.com-video-to-gif-converter*.gif
 
 # Builds

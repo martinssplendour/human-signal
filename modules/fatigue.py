@@ -1,3 +1,4 @@
+from collections import deque
 import time
 
 
@@ -7,9 +8,9 @@ BLINK_MAX_SECS = 0.80
 
 _state = {
     "closed_started": None,
-    "blink_times": [],
-    "blink_durations": [],
-    "eye_samples": [],
+    "blink_times": deque(maxlen=120),
+    "blink_durations": deque(maxlen=120),
+    "eye_samples": deque(maxlen=2400),
     "yawn_start": None,
     "yawn_count": 0,
     "open_ear_base": None,
@@ -21,9 +22,9 @@ _state = {
 def reset():
     _state.update({
         "closed_started": None,
-        "blink_times": [],
-        "blink_durations": [],
-        "eye_samples": [],
+        "blink_times": deque(maxlen=120),
+        "blink_durations": deque(maxlen=120),
+        "eye_samples": deque(maxlen=2400),
         "yawn_start": None,
         "yawn_count": 0,
         "open_ear_base": None,
@@ -45,11 +46,14 @@ def fatigue_score(feats, quality, cfg, calibrating=False, posture_state=None, mo
     now = time.time()
     ear = _ear(feats)
     mar = feats.get("mar")
+    eye_closed_score = feats.get("eye_closed_score")
+    mouth_open_score = feats.get("mouth_open_score")
     neck = feats.get("neck_angle")
     window = float(cfg["windows"].get("fatigue_seconds", 60))
 
     if calibrating:
-        if ear is not None and ear > DEFAULT_EAR_CLOSED:
+        eye_open_by_blendshape = eye_closed_score is None or eye_closed_score < 0.35
+        if ear is not None and ear > DEFAULT_EAR_CLOSED and eye_open_by_blendshape:
             base = _state["open_ear_base"]
             _state["open_ear_base"] = ear if base is None else 0.9 * base + 0.1 * ear
         return {
@@ -64,7 +68,7 @@ def fatigue_score(feats, quality, cfg, calibrating=False, posture_state=None, mo
             "conf": quality["conf_base"] * 0.8,
         }
 
-    if ear is None or not quality.get("face_present", False):
+    if (ear is None and eye_closed_score is None) or not quality.get("face_present", False):
         return {
             "score": 0.0,
             "state": "insufficient_signal",
@@ -80,10 +84,13 @@ def fatigue_score(feats, quality, cfg, calibrating=False, posture_state=None, mo
     closed_threshold = DEFAULT_EAR_CLOSED
     if _state["open_ear_base"] is not None:
         closed_threshold = max(0.12, _state["open_ear_base"] * cfg["thresholds"].get("fatigue_ear_closed_ratio", 0.7))
-    closed = ear < closed_threshold
+    closed_by_ear = ear is not None and ear < closed_threshold
+    closed_by_blendshape = eye_closed_score is not None and eye_closed_score >= 0.55
+    closed = closed_by_ear or closed_by_blendshape
 
     _state["eye_samples"].append((now, closed))
-    _state["eye_samples"] = [(t, c) for t, c in _state["eye_samples"] if now - t <= window]
+    while _state["eye_samples"] and now - _state["eye_samples"][0][0] > window:
+        _state["eye_samples"].popleft()
 
     if closed and _state["closed_started"] is None:
         _state["closed_started"] = now
@@ -94,8 +101,8 @@ def fatigue_score(feats, quality, cfg, calibrating=False, posture_state=None, mo
             _state["blink_durations"].append(duration)
         _state["closed_started"] = None
 
-    _state["blink_times"] = [t for t in _state["blink_times"] if now - t <= 60.0]
-    _state["blink_durations"] = _state["blink_durations"][-120:]
+    while _state["blink_times"] and now - _state["blink_times"][0] > 60.0:
+        _state["blink_times"].popleft()
     blink_rate = len(_state["blink_times"])
     perclos = 0.0
     if _state["eye_samples"]:
@@ -106,7 +113,9 @@ def fatigue_score(feats, quality, cfg, calibrating=False, posture_state=None, mo
 
     yawn_thr = cfg["thresholds"].get("yawn_mar", 0.6)
     yawn_min = cfg["thresholds"].get("yawn_min_secs", 0.5)
-    if mar is not None and mar >= yawn_thr:
+    yawn_by_mar = mar is not None and mar >= yawn_thr
+    yawn_by_blendshape = mouth_open_score is not None and mouth_open_score >= 0.55
+    if yawn_by_mar or yawn_by_blendshape:
         if _state["yawn_start"] is None:
             _state["yawn_start"] = now
         elif now - _state["yawn_start"] >= yawn_min:
@@ -138,6 +147,16 @@ def fatigue_score(feats, quality, cfg, calibrating=False, posture_state=None, mo
         state = "drowsy"
     elif blink_rate > cfg["thresholds"].get("blink_rate_high", 25) or _state["yawn_count"] > 0:
         state = "fatigue_signs"
+    if (
+        quality.get("signal_ok")
+        and state == "alert"
+        and ear is not None
+        and ear > closed_threshold
+        and score <= cfg.get("calibration", {}).get("baseline_update_max_score", 25.0)
+    ):
+        alpha = cfg.get("calibration", {}).get("baseline_ema_alpha", 0.005)
+        base = _state["open_ear_base"]
+        _state["open_ear_base"] = ear if base is None else (1 - alpha) * base + alpha * ear
 
     return {
         "score": float(max(0.0, min(100.0, score))),
@@ -145,9 +164,12 @@ def fatigue_score(feats, quality, cfg, calibrating=False, posture_state=None, mo
         "blink_rate": blink_rate,
         "perclos": float(perclos),
         "blink_duration": float(avg_blink_duration),
+        "closed_duration": float(closed_duration),
         "microsleep": microsleep,
         "yawns": _state["yawn_count"],
         "head_nods": _state["head_nod_count"],
         "ear_closed_threshold": float(closed_threshold),
+        "eye_closed_score": float(eye_closed_score) if eye_closed_score is not None else None,
+        "mouth_open_score": float(mouth_open_score) if mouth_open_score is not None else None,
         "conf": quality["conf_base"] * (1.0 if quality.get("signal_ok") else 0.55),
     }

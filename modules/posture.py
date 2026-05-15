@@ -34,31 +34,36 @@ def _angle_to_vertical(v):
 
 def posture_status(feats, quality, cfg, calibrating=False):
     pose = feats.get("pose")
+    head_pitch_deg = feats.get("head_pitch_deg")
+    head_roll_deg = feats.get("head_roll_deg")
     if pose is None:
-        # Keep last known, but lower confidence
-        return {"state": _state["last_state"], "conf": quality["conf_base"] * 0.5,
-                "angles": {"head": _state["sm_head"], "torso": _state["sm_torso"]}}
+        if head_pitch_deg is None:
+            return {"state": _state["last_state"], "conf": quality["conf_base"] * 0.5,
+                    "angles": {"head": _state["sm_head"], "torso": _state["sm_torso"], "roll": head_roll_deg}}
+        ang_head = abs(float(head_pitch_deg))
+        ang_torso = _state["sm_torso"] if _state["sm_torso"] is not None else 0.0
+    else:
+        # Extract needed keypoints (may raise if any missing)
+        try:
+            l_sh, r_sh = pose[LS, :2], pose[RS, :2]
+            l_hip, r_hip = pose[LH, :2], pose[RH, :2]
+            l_ear, r_ear = pose[LEAR, :2], pose[REAR, :2]
+        except Exception:
+            return {"state": _state["last_state"], "conf": quality["conf_base"] * 0.5,
+                    "angles": {"head": _state["sm_head"], "torso": _state["sm_torso"], "roll": head_roll_deg}}
 
-    # Extract needed keypoints (may raise if any missing)
-    try:
-        l_sh, r_sh = pose[LS, :2], pose[RS, :2]
-        l_hip, r_hip = pose[LH, :2], pose[RH, :2]
-        l_ear, r_ear = pose[LEAR, :2], pose[REAR, :2]
-    except Exception:
-        return {"state": _state["last_state"], "conf": quality["conf_base"] * 0.5,
-                "angles": {"head": _state["sm_head"], "torso": _state["sm_torso"]}}
+        shoulder_mid = (l_sh + r_sh) / 2.0
+        hip_mid      = (l_hip + r_hip) / 2.0
+        ear_mid      = (l_ear + r_ear) / 2.0
 
-    shoulder_mid = (l_sh + r_sh) / 2.0
-    hip_mid      = (l_hip + r_hip) / 2.0
-    ear_mid      = (l_ear + r_ear) / 2.0
+        # Vectors
+        v_head  = ear_mid - shoulder_mid     # neck/head direction
+        v_torso = shoulder_mid - hip_mid     # torso (shoulders above hips)
 
-    # Vectors
-    v_head  = ear_mid - shoulder_mid     # neck/head direction
-    v_torso = shoulder_mid - hip_mid     # torso (shoulders above hips)
-
-    # Raw angles to vertical
-    ang_head  = _angle_to_vertical(v_head)
-    ang_torso = _angle_to_vertical(v_torso)
+        # Raw angles to vertical. Prefer solvePnP/Tasks pitch for head flexion when available.
+        pose_head = _angle_to_vertical(v_head)
+        ang_head = abs(float(head_pitch_deg)) if head_pitch_deg is not None and abs(float(head_pitch_deg)) < 85.0 else pose_head
+        ang_torso = _angle_to_vertical(v_torso)
 
     # Strong EMA smoothing to stabilize noise
     alpha = 0.15
@@ -75,7 +80,7 @@ def posture_status(feats, quality, cfg, calibrating=False):
         _state["last_state"] = "upright"
         _state["since"] = 0.0
         return {"state": "upright", "conf": quality["conf_base"],
-                "angles": {"head": sm_head, "torso": sm_torso}}
+                "angles": {"head": sm_head, "torso": sm_torso, "roll": head_roll_deg}}
 
     # Absolute thresholds from config
     abs_enter = float(cfg["thresholds"].get("neck_angle_slouch", 22))   # enter slouch if > this
@@ -120,7 +125,7 @@ def posture_status(feats, quality, cfg, calibrating=False):
     return {
         "state": _state["last_state"],
         "conf": quality["conf_base"],
-        "angles": {"head": sm_head, "torso": sm_torso},
+        "angles": {"head": sm_head, "torso": sm_torso, "roll": head_roll_deg},
         "thresholds": {
             "head_enter": head_enter_th, "head_exit": head_exit_th,
             "torso_enter": torso_enter_th, "torso_exit": torso_exit_th

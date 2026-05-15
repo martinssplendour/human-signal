@@ -11,6 +11,7 @@ from modules.fatigue import fatigue_score
 from modules.fuse import fuse_scores
 from modules.posture import posture_status
 from modules.stress import stress_score
+from ml import SignalClassifierBundle
 
 
 @dataclass
@@ -26,6 +27,7 @@ class WellnessPipeline:
     def __init__(self, cfg: Dict[str, Any]):
         self.cfg = cfg
         self.state = PipelineState()
+        self.ml = SignalClassifierBundle.from_config(cfg)
 
     def process(self, frame_rgb, det: Dict[str, Any], calibrating: bool = False, motion_energy: float = 0.0):
         now = time.time()
@@ -52,6 +54,11 @@ class WellnessPipeline:
         )
         att = attention_score(feats, quality, self.cfg, calibrating=calibrating)
         tension = stress_score(feats, quality, self.cfg, calibrating=calibrating)
+        if not calibrating:
+            applied = self.ml.apply(feats, quality, {"fatigue": fat, "attention": att, "tension": tension})
+            fat = applied["fatigue"]
+            att = applied["attention"]
+            tension = applied["tension"]
         dist = distance_status(det, self.cfg)
 
         alpha = self.cfg["smoothing"]["ema_alpha"]
@@ -60,7 +67,17 @@ class WellnessPipeline:
             self.state.attention_sm = ema(att["score"], self.state.attention_sm, alpha)
             self.state.tension_sm = ema(tension["score"], self.state.tension_sm, alpha)
 
+        display_fat = {**fat, "score": self.state.fatigue_sm}
+        display_att = {**att, "score": self.state.attention_sm}
+        display_tension = {**tension, "score": self.state.tension_sm}
         fused = fuse_scores(
+            fatigue=display_fat,
+            attention=display_att,
+            stress=display_tension,
+            weights=self.cfg["fusion"]["weights"],
+            min_conf=self.cfg["quality"]["min_confidence"],
+        )
+        raw_fused = fuse_scores(
             fatigue=fat,
             attention=att,
             stress=tension,
@@ -77,6 +94,12 @@ class WellnessPipeline:
             "posture": post,
             "distance": dist,
             "fused": fused,
+            "raw_fused": raw_fused,
+            "raw_scores": {
+                "fatigue": float(fat["score"]),
+                "attention": float(att["score"]),
+                "tension": float(tension["score"]),
+            },
             "smoothed": {
                 "fatigue": self.state.fatigue_sm,
                 "attention": self.state.attention_sm,

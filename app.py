@@ -407,7 +407,8 @@ with st.sidebar:
         healthcare_consent = st.checkbox("Observation consent captured")
         healthcare_recording_consent = st.checkbox("Raw video recording consent captured")
     st.markdown("---")
-    if st.button("Calibrate 5s"):
+    calibration_seconds = float(cfg.get("calibration", {}).get("seconds", 10.0))
+    if st.button(f"Calibrate {int(calibration_seconds)}s"):
         if st.session_state.latest_calibration_gate.get("ok"):
             reset_modules()
             st.session_state.pipeline = WellnessPipeline(cfg)
@@ -604,7 +605,7 @@ try:
             st.session_state.motion_ema = 0.0
         st.session_state.prev_gray = gray
 
-        calibrating = st.session_state.calibrating and (time.time() - st.session_state.cal_start <= 5.0)
+        calibrating = st.session_state.calibrating and (time.time() - st.session_state.cal_start <= float(cfg.get("calibration", {}).get("seconds", 10.0)))
         if st.session_state.calibrating and not calibrating:
             st.session_state.calibrating = False
 

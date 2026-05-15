@@ -1,4 +1,5 @@
 # POS rPPG (NumPy/OpenCV only) with SNR gating
+from collections import deque
 import time
 import numpy as np
 import cv2
@@ -13,10 +14,10 @@ BR_BAND = (0.10, 0.60)    # Hz → 6–36 rpm
 SNR_MIN = 4.0             # min peak/sideband ratio to show number
 
 _state = {
-    "t": [],
-    "r": [],
-    "g": [],
-    "b": [],
+    "t": deque(maxlen=1200),
+    "r": deque(maxlen=1200),
+    "g": deque(maxlen=1200),
+    "b": deque(maxlen=1200),
     "last_t": None,
 }
 
@@ -132,7 +133,7 @@ def update(frame_rgb, feats, quality, motion_energy, cfg, calibrating=False):
     # Keep only last WIN_SECS
     t0 = now - WIN_SECS
     while _state["t"] and _state["t"][0] < t0:
-        _state["t"].pop(0); _state["r"].pop(0); _state["g"].pop(0); _state["b"].pop(0)
+        _state["t"].popleft(); _state["r"].popleft(); _state["g"].popleft(); _state["b"].popleft()
 
     # Quality gating
     if (len(_state["t"]) < MIN_SAMPLES) or (luma < MIN_LUMA) or (motion_energy > MOTION_MAX) or calibrating:
