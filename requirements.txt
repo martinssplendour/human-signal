@@ -1,12 +1,14 @@
-opencv-python
-mediapipe
-numpy
-scipy
-streamlit
-plotly
-pydantic
-pyyaml
-fastapi
-uvicorn
-joblib
-scikit-learn
+# Core runtime
+mediapipe==0.10.21
+opencv-contrib-python==4.11.0.86
+numpy>=1.26,<2
+protobuf>=4.25.3,<5
+scipy>=1.11,<2
+pydantic>=1.10,<3
+PyYAML>=6,<7
+fastapi>=0.100,<1
+uvicorn[standard]>=0.30,<1
+
+# Optional local classifier training
+joblib>=1.3,<2
+scikit-learn>=1.3,<2
